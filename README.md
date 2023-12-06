@@ -1,10 +1,12 @@
-### Training the Model
+# Training the Model
 Our model training script is located in the Train_Model directory, specifically in the train_model_hlm.py file. 
+
+
 
 To initiate the training process, you have to execute the train_model_hlm.py script with the following parameters: path_data and path_indices. These parameters specify the locations for the training dataset and indices respectively. Please ensure that these data files are placed in the correct directories before initiating the learning process.
 
 
-### Deploying and Validating the Model on Target
+# Deploying and Validating the Model on Target
 We have made our own proprietary machine learning framework to validate the model on the target environment, without relying on the usage of X-Cube-AI.
 
 For the model's implementation on the target, we have the framework present in the Model_on_target directory. The designed layout for this is given in the main.c file, which was created using the structural template extracted from TESTMODEL3.zip.
