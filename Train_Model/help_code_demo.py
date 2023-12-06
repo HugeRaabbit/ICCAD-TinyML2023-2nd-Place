@@ -100,14 +100,14 @@ def stats_report(mylist):
              "PPV = " + str(ppv) + '\n' + \
              "NPV = " + str(npv) + '\n'
 
-    print("F-1 = ", F1(mylist))
-    print("F-B = ", FB(mylist))
-    print("SEN = ", Sensitivity(mylist))
-    print("SPE = ", Specificity(mylist))
-    print("BAC = ", BAC(mylist))
-    print("ACC = ", ACC(mylist))
-    print("PPV = ", PPV(mylist))
-    print("NPV = ", NPV(mylist))
+    # print("F-1 = ", F1(mylist))
+    # print("F-B = ", FB(mylist))
+    # print("SEN = ", Sensitivity(mylist))
+    # print("SPE = ", Specificity(mylist))
+    # print("BAC = ", BAC(mylist))
+    # print("ACC = ", ACC(mylist))
+    # print("PPV = ", PPV(mylist))
+    # print("NPV = ", NPV(mylist))
 
     return output
 
@@ -136,7 +136,6 @@ def loadCSV(csvf):
 def txt_to_numpy(filename, row):
     file = open(filename)
     lines = file.readlines()
-    # datamat = np.arange(row, dtype=np.float)
     datamat = np.arange(row, dtype=np.float64)
     row_count = 0
     for line in lines:
@@ -156,38 +155,8 @@ class ToTensor(object):
         }
 
 
-class IEGM_DataSET1():
-    def __init__(self, root_dir, indice_dir, mode, size, transform=None):
-        self.root_dir = root_dir
-        self.indice_dir = indice_dir
-        self.size = size
-        self.names_list = []
-        self.transform = transform
-
-        csvdata_all = loadCSV(os.path.join(self.indice_dir, mode + '_indice.csv'))
-
-        for i, (k, v) in enumerate(csvdata_all.items()):
-            self.names_list.append(str(k) + ' ' + str(v[0]))
-
-    def __len__(self):
-        return len(self.names_list)
-
-    def __getitem__(self, idx):
-        text_path = self.root_dir + self.names_list[idx].split(' ')[0]
-
-        if not os.path.isfile(text_path):
-            print(text_path + 'does not exist')
-            return None
-
-        IEGM_seg = txt_to_numpy(text_path, self.size).reshape(1, self.size, 1)
-        label = int(self.names_list[idx].split(' ')[1])
-        sample = {'IEGM_seg': IEGM_seg[:,2:], 'label': label}
-
-        return sample
-
-
 class IEGM_DataSET():
-    def __init__(self, root_dir, indice_dir, mode, size, transform=None):
+    def __init__(self, root_dir, indice_dir, mode, size, subject_id=None, transform=None):
         self.root_dir = root_dir
         self.indice_dir = indice_dir
         self.size = size
@@ -197,7 +166,11 @@ class IEGM_DataSET():
         csvdata_all = loadCSV(os.path.join(self.indice_dir, mode + '_indice.csv'))
 
         for i, (k, v) in enumerate(csvdata_all.items()):
-            self.names_list.append(str(k) + ' ' + str(v[0]))
+            # Check if the subject ID matches
+            if subject_id is not None and k.startswith(subject_id):
+                self.names_list.extend([f"{k} {filename}" for filename in v])
+            elif subject_id is None:
+                self.names_list.append(str(k) + ' ' + str(v[0]))
 
     def __len__(self):
         return len(self.names_list)
@@ -206,115 +179,20 @@ class IEGM_DataSET():
         text_path = self.root_dir + self.names_list[idx].split(' ')[0]
 
         if not os.path.isfile(text_path):
-            print(text_path + 'does not exist')
+            print(text_path + ' does not exist')
             return None
 
         IEGM_seg = txt_to_numpy(text_path, self.size).reshape(1, self.size, 1)
         label = int(self.names_list[idx].split(' ')[1])
         sample = {'IEGM_seg': IEGM_seg, 'label': label}
 
-        return sample
-
-
-
-
-#######################################
-
-def extract_features_for_single_peak_optimized(x_peaks):
-    peak_features_count = len(x_peaks)
-    diff_intervals = [x - x_peaks[i - 1] for i, x in enumerate(x_peaks)][1:]
-    if len(diff_intervals) >1:
-        peak_features_min_int = np.min(diff_intervals)
-        peak_features_max_int = np.max(diff_intervals)
-        peak_features_avg_int = np.ceil(np.average(diff_intervals))
-        peak_features_min_cnt = len(np.where(diff_intervals < peak_features_avg_int)[0])
-        peak_features_max_cnt = len(np.where(diff_intervals > peak_features_avg_int)[0])
-        peak_features_bpm = peak_features_count*12
-    else:
-        peak_features_min_int = 1
-        peak_features_max_int = 1
-        peak_features_avg_int = 1
-        peak_features_min_cnt = 1
-        peak_features_max_cnt = 1
-        peak_features_bpm = 12
-    
-    feature_list=[peak_features_count, peak_features_min_int, peak_features_max_int,peak_features_avg_int,  peak_features_min_cnt, peak_features_max_cnt, peak_features_bpm]
-   
-    return feature_list
-
-def supress_non_maximum(peak_indices, X_data, window = 30):
-    new_peak_indices=[]
-    last_peak=peak_indices[0]
-    for i in range(1, len(peak_indices)):
-        curr_diff = peak_indices[i] - last_peak
-        if curr_diff > window:
-            new_peak_indices.append(last_peak)
-            last_peak = peak_indices[i]
-        else:
-            if X_data[peak_indices[i]] > X_data[last_peak]:
-                last_peak = peak_indices[i]
-    if new_peak_indices[-1] != last_peak :
-        new_peak_indices.append(last_peak)
-        
-    return new_peak_indices
-
-
-
-
-def extract_peaks_features_optimized(X_data, std_val=1.8, window=30):
-    X_data_new = np.array(X_data)
-    std_arr = np.abs(np.std(X_data_new)*std_val)
-    peak_indices =np.where(np.abs(X_data_new) > std_arr)[0]
-
-    #plot_all_peak(peak_indices, X_data, color='green')
-    peak_indices = supress_non_maximum(peak_indices, X_data, window)
-    #plot_all_peak(peak_indices, X_data, color='red')
-
-    peaks_features = extract_features_for_single_peak_optimized(peak_indices)
-
-
-    return peaks_features
-
- ###################################   
-
-class UBPercept_peak_DataSET():
-    def __init__(self, root_dir, indice_dir, mode, size, transform=None):
-        self.root_dir = root_dir
-        self.indice_dir = indice_dir
-        self.size = size
-        self.names_list = []
-        self.transform = transform
-
-        self.features = {}
-
-        csvdata_all = loadCSV(os.path.join(self.indice_dir, mode + '_indice.csv'))
-
-        for i, (k, v) in enumerate(csvdata_all.items()):
-            self.names_list.append(str(k) + ' ' + str(v[0]))
-
-    def __len__(self):
-        return len(self.names_list)
-
-    def __getitem__(self, idx):
-        text_path = self.root_dir + self.names_list[idx].split(' ')[0]
-
-        if not os.path.isfile(text_path):
-            print(text_path + 'does not exist')
-            return None
-
-        IEGM_seg = txt_to_numpy(text_path, self.size)
-
-        if idx not in self.features:
-            peaks_features = np.array(extract_peaks_features_optimized(IEGM_seg))
-            peaks_features = peaks_features.reshape(1, len(peaks_features), 1)
-            self.features[idx]= peaks_features
-        
-        label = int(self.names_list[idx].split(' ')[1])
-        sample = {'IEGM_seg': self.features[idx], 'label': label}
+        if self.transform:
+            sample = self.transform(sample)
 
         return sample
 
 
+        
 
 
 def pytorch2onnx(net_path, net_name, size):
